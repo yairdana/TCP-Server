@@ -4,6 +4,18 @@ ifstream inFile;
 string folderPath("C:/temp/");
 time_t currentTime;
 
+const char* httpRequests1[] =
+{
+	"GET",
+	"HEAD",
+	"POST",
+	"PUT",
+	"DELETE",
+	"TRACE",
+	"OPTIONS"
+};
+
+
 // ==== GET ==== //
 void sendGetResponse(char* dataRequest, string* sendBuff) {
 	string httpStatus, response, fileData, stringFileSize, lang, filename;
@@ -41,8 +53,9 @@ void sendHeadResponse(char* dataRequest, string* sendBuff) {
 
 	// openfile and determine httpstatus
 	bool ret = openFile(eRequestType::HEAD, &inFile, &filename, &httpStatus);
-
-	response = buildResponse(eRequestType::HEAD, &httpStatus, NULL, NULL);
+	string body = "";
+	string bodySize = "0";
+	response = buildResponse(eRequestType::HEAD, &httpStatus, &bodySize, &body);
 	*sendBuff = response;
 	closeFile(&inFile);
 }
@@ -79,7 +92,7 @@ void sendDeleteRepsonse(char* dataRequest, string* sendBuff)
 	string httpStatus, body, bodySize, response= "";
 	int intBodySize = 0;
 	char ctmp[20];
-	string fileToRemove =folderPath + strtok(dataRequest, " ");
+	string fileToRemove = folderPath + strtok(dataRequest, " ");
 	bool ret = removeFile(fileToRemove, &httpStatus);
 	
 	body = ret ? "File deleted." : "Cannot delete file.";
@@ -93,74 +106,63 @@ void sendDeleteRepsonse(char* dataRequest, string* sendBuff)
 
 bool sendPutResponse(char* dataRequest, string* sendBuff) {
 	string strFsize;
-	time_t currentTime;
-	time(&currentTime);
 	char ctmp[20];
 	int intFsize = 0;
-	string folderPath("C:/temp/");
-	string filename,sFullMessage;
+	string filename, response, httpStatus;
 	string mydata = extractBodyFromReq(dataRequest);
+	strFsize = _itoa(intFsize, ctmp, 10);
+	string body = "\r\n\r\n";
 
 	string copy (dataRequest);	
 	string uri(strtok((char*)copy.c_str(), " "));
+
 	setGetParams(uri, &filename, NULL);
 	
 	filename = folderPath + filename;
-	
 	int retCode = createOrOverwriteFile(mydata, filename);
 	switch (retCode)
 	{
-	case 0:
-		cout << "PUT " << filename << "Failed";
-		sFullMessage = "HTTP/1.1 412 Precondition failed \r\nDate: ";
-		break;
-	case 200:
-		sFullMessage = "HTTP/1.1 200 OK \r\nDate: ";
-		break;
-	case 201:
-		sFullMessage = "HTTP/1.1 201 Created \r\nDate: ";
-		break;
-	case 204:
-		sFullMessage = "HTTP/1.1 204 No Content \r\nDate: ";
-		break;
-	default:
-		sFullMessage = "HTTP/1.1 501 Not Implemented \r\nDate: ";
-
-		break;
+		case 0:
+			cout << "PUT " << filename << "Failed";
+			httpStatus = "412 Precondition failed";
+			break;
+		case 200:
+			httpStatus = "200 OK";
+			break;
+		case 201:
+			httpStatus = "201 Created";
+			break;
+		case 204:
+			httpStatus = "204 No Content";
+			break;
+		default:
+			httpStatus = "501 Not Implemented";
+			break;
 	}
-	//does it need to return more?
-	sFullMessage += ctime(&currentTime); 
-	sFullMessage += "Content-length: ";
-	strFsize = _itoa(intFsize, ctmp, 10);
-	sFullMessage += strFsize;
-	sFullMessage += "\r\n\r\n";
 
-	*sendBuff = sFullMessage;
+	response = buildResponse(eRequestType::TRACE, &httpStatus, &strFsize, &body);
+	*sendBuff = response;
 	return true;
 }
 
-void sendTraceResponse(char* dataRequest, string* sendBuff) 
+// ==== TRACE ==== // 
+void sendTraceResponse(char* dataRequest, string* sendBuff)
 {	
 	int buffLen = 0, intFsize = 0;
-	string strFsize;
-	string sFullMessage, tmpStringBuff;
-	time_t rawtime;
-	time(&rawtime);
+	string bodySize, httpStatus = "200 OK";
+	string response;
 	char ctmp[20];
 
-	intFsize = strlen("TRACE");
-	intFsize += strlen(dataRequest);
-	sFullMessage = "HTTP/1.1 200 OK \r\nContent-type: message/http\r\nDate: ";
-	sFullMessage += ctime(&rawtime);
-	sFullMessage += "Content-length: ";
-	strFsize = _itoa(intFsize, ctmp, 10);
-	sFullMessage += strFsize;
-	sFullMessage += "\r\n\r\n";
 
-	sFullMessage += "TRACE";
-	sFullMessage += dataRequest;
-	buffLen = sFullMessage.size();
-	*sendBuff = sFullMessage;
+	string body = "TRACE /";
+	///TODO AUX
+	body += dataRequest;
+	intFsize = body.length();
+	bodySize = _itoa(intFsize, ctmp, 10);
+
+
+	response = buildResponse(eRequestType::_DELETE, &httpStatus, &bodySize, &body);
+	*sendBuff = response;
 }
 
 
@@ -246,7 +248,9 @@ string buildResponse(eRequestType httpRequest, string* httpStatus, string* strFs
 		response += "\r\n\r\n";
 	}
 
-	if (httpRequest == eRequestType::GET || httpRequest == eRequestType::POST || httpRequest == eRequestType::_DELETE)
+	if (httpRequest == eRequestType::GET || httpRequest == eRequestType::POST || httpRequest == eRequestType::HEAD
+		|| httpRequest == eRequestType::_DELETE || httpRequest == eRequestType::TRACE
+		|| httpRequest == eRequestType::PUT)
 	{
 		response += "Content-type: text/html\r\n";
 		response += "Content-length: ";
