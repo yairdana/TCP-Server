@@ -82,10 +82,11 @@ string extractBodyFromReq(char* dataRequest);
 void sendHeadResponse(char* dataRequest, string* sendBuff);
 void sendPostResponse(char* dataRequest, string* sendBuff);
 void sendOptionsResponse(char* dataRequest, string* sendBuff);
-bool sendDeleteRepsonse(char* dataRequest, string* sendBuff);
+void sendDeleteRepsonse(char* dataRequest, string* sendBuff);
 bool sendPutResponse(char* dataRequest, string* sendBuff);
 int createOrOverwriteFile(string data, string filename);
 
+bool removeFile(string fileToRemove, string* httpStatus);
 
 static inline void ltrim(string& s);
 static inline void rtrim(string & s);
