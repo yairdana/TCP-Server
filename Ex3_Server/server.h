@@ -63,11 +63,23 @@ void bindSocketForClientRequests(SOCKET* listenSocket, sockaddr_in* serverServic
 void listenOnSocketForIncomingConnection(SOCKET* listenSocket);
 void updateSocketRequestAndData(SocketState* socket, eRequestType request);
 eRequestType extractRequestFromData(SocketState* socket);
+void deleteStuckRequests();
 
+fd_set initWaitRecvSockets();
+fd_set initWaitSendSockets();
+
+void handleWaitRecvSockets(int nfd, fd_set* waitRecv);
+void handleWaitSendSockets(int nfd, fd_set* waitSend);
 // =====  Aux Functions ==== //
-bool sendGetResponse(char* dataRequest, string* sendBuff);
+void closeFile(ifstream* inFile);
+bool openFile(eRequestType request, ifstream* inFile, string* filename, string* httpStatus);
+string buildResponse(eRequestType httpRequest, string* httpStatus, string* strFsize, string* fileData);
+void sendGetResponse(char* dataRequest, string* sendBuff);
 void setGetParams(string uri, string* filename, string* lang);
-bool sendHeadResponse(char* dataRequest, string* sendBuff);
+
+string extractBodyFromReq(char* dataRequest);
+
+void sendHeadResponse(char* dataRequest, string* sendBuff);
 void PrintPostToConsole(char* dataRequest, string* sendBuff);
 bool sendOptionsResponse(char* dataRequest, string* sendBuff);
 bool sendDeleteRepsonse(char* dataRequest, string* sendBuff);

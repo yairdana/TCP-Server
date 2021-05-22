@@ -1,5 +1,5 @@
 #include "server.h"
-
+//infinite loop when send HEAD - it will trigger remove socket
 struct SocketState sockets[MAX_SOCKETS] = { 0 };
 int socketsCount = 0;
 
@@ -7,7 +7,7 @@ const char* httpRequests[] =
 {
 	"GET",
 	"HEAD",
-	"POST"
+	"POST",
 	"PUT",
 	"DELETE",
 	"TRACE",
@@ -16,7 +16,6 @@ const char* httpRequests[] =
 
 void main()
 {
-	time_t currentTime;
 
 	WSAData wsaData = initWsaData();
 	SOCKET listenSocket = initSocket();
@@ -29,37 +28,11 @@ void main()
 	// Accept connections and handles them one by one.
 	while (true)
 	{
+		deleteStuckRequests();
+		fd_set waitRecv= initWaitRecvSockets();
+		fd_set waitSend = initWaitSendSockets();
 
-		for (int i = 1; i < MAX_SOCKETS; i++)
-		{
-			currentTime = time(0);
-			if ((currentTime - sockets[i].requestTime > 120) && (sockets[i].requestTime != 0))
-			{
-				removeSocket(i);
-			}
-		}
-
-		fd_set waitRecv;
-		FD_ZERO(&waitRecv);
-		for (int i = 0; i < MAX_SOCKETS; i++)
-		{
-			if ((sockets[i].recv == eSocketStatus::LISTEN) || (sockets[i].recv == eSocketStatus::RECEIVE))
-				FD_SET(sockets[i].id, &waitRecv);
-		}
-
-		fd_set waitSend;
-		FD_ZERO(&waitSend);
-		for (int i = 0; i < MAX_SOCKETS; i++)
-		{
-			if (sockets[i].send == eSocketStatus::SEND)
-				FD_SET(sockets[i].id, &waitSend);
-		}
-
-		//
 		// Wait for interesting event.
-		// Note: First argument is ignored. The fourth is for exceptions.
-		// And as written above the last is a timeout, hence we are blocked if nothing happens.
-		//
 		int nfd;
 		nfd = select(0, &waitRecv, &waitSend, NULL, NULL);
 		if (nfd == SOCKET_ERROR)
@@ -69,42 +42,12 @@ void main()
 			return;
 		}
 
-		for (int i = 0; i < MAX_SOCKETS && nfd > 0; i++)
-		{
-			if (FD_ISSET(sockets[i].id, &waitRecv))
-			{
-				nfd--;
-				switch (sockets[i].recv)
-				{
-				case eSocketStatus::LISTEN:
-					acceptConnection(i);
-					break;
 
-				case eSocketStatus::RECEIVE:
-					receiveMessage(i);
-					break;
-				}
-			}
-		}
-
-		for (int i = 0; i < MAX_SOCKETS && nfd > 0; i++)
-		{
-			if (FD_ISSET(sockets[i].id, &waitSend))
-			{
-				nfd--;
-				switch (sockets[i].send)
-				{
-				case eSocketStatus::SEND:
-					if (!sendMessage(i))
-						continue;
-					break;
-				}
-			}
-		}
+		handleWaitRecvSockets(nfd, &waitRecv);
+		handleWaitSendSockets(nfd, &waitSend);
 	}
 
 	// Closing connections and Winsock.
-
 	cout << "HTTP Server: Closing Connection.\n";
 	closesocket(listenSocket);
 	WSACleanup();
@@ -342,8 +285,6 @@ sockaddr_in createSocketAddr()
 	return serverService;
 }
 
-
-
 void updateSocketRequestAndData(SocketState* socket, eRequestType request)
 {
 	int dataindex = strlen(httpRequests[(int)request]) + 2;
@@ -352,7 +293,6 @@ void updateSocketRequestAndData(SocketState* socket, eRequestType request)
 	strcpy(socket->data, &(socket->data[dataindex]));
 	socket->dataLen = strlen(socket->data);
 	socket->data[socket->dataLen] = NULL;
-
 }
 
 
@@ -390,3 +330,86 @@ eRequestType extractRequestFromData(SocketState* socket)
 
 	return result;
 }
+
+void deleteStuckRequests()
+{
+	time_t currentTime;
+	for (int i = 1; i < MAX_SOCKETS; i++)
+	{
+		currentTime = time(0);
+		if ((currentTime - sockets[i].requestTime > 120) && (sockets[i].requestTime != 0))
+		{
+			removeSocket(i);
+		}
+	}
+
+}
+
+
+fd_set initWaitRecvSockets()
+{
+	fd_set waitRecv;
+	FD_ZERO(&waitRecv);
+	for (int i = 0; i < MAX_SOCKETS; i++)
+	{
+		if ((sockets[i].recv == eSocketStatus::LISTEN) || (sockets[i].recv == eSocketStatus::RECEIVE))
+			FD_SET(sockets[i].id, &waitRecv);
+	}
+	return waitRecv;
+}
+
+
+fd_set initWaitSendSockets()
+{
+	fd_set waitSend;
+	FD_ZERO(&waitSend);
+
+	for (int i = 0; i < MAX_SOCKETS; i++)
+	{
+		if (sockets[i].send == eSocketStatus::SEND)
+			FD_SET(sockets[i].id, &waitSend);
+	}
+	return waitSend;
+}
+
+
+void handleWaitRecvSockets(int nfd, fd_set* waitRecv)
+{
+	for (int i = 0; i < MAX_SOCKETS && nfd > 0; i++)
+	{
+		if (FD_ISSET(sockets[i].id, waitRecv))
+		{
+			nfd--;
+			switch (sockets[i].recv)
+			{
+			case eSocketStatus::LISTEN:
+				acceptConnection(i);
+				break;
+
+			case eSocketStatus::RECEIVE:
+				receiveMessage(i);
+				break;
+			}
+		}
+	}
+}
+void handleWaitSendSockets(int nfd, fd_set* waitSend)
+{
+	for (int i = 0; i < MAX_SOCKETS && nfd > 0; i++)
+	{
+		if (FD_ISSET(sockets[i].id, waitSend))
+		{
+			nfd--;
+			switch (sockets[i].send)
+			{
+			case eSocketStatus::SEND:
+				if (!sendMessage(i))
+					continue;
+				break;
+			}
+		}
+	}
+}
+
+
+
