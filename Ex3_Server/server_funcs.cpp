@@ -1,10 +1,5 @@
-#include "server_funcs.h"
-#include <iostream>
-#include <string>
-#include <regex>
+#include "server.h"
 ifstream inFile;
-
-
 
 bool sendGetResponse(char* dataRequest, string* sendBuff) {
 	string httpStatus;

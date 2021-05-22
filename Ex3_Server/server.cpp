@@ -1,49 +1,7 @@
-
-#include "server_funcs.h"
-
-
-typedef enum enStatusList {
-	EMPTY = 0,
-	LISTEN,
-	RECEIVE,
-	IDLE,
-	SEND,
-};
-
-typedef enum enCommandList {
-	GET = 1,
-	HEAD,
-	PUT,
-	POST,
-	D_DELETE,
-	TRACE,
-	OPTIONS 
-};
-
-
-struct stSocketState
-{
-	SOCKET id;
-	enStatusList recv;
-	enStatusList send;
-	enCommandList HTTP_command;
-	time_t tLastActivity;
-	char sSocketData[BUFF_SIZE];
-	int iSocketDataLen;
-};
-
-
-bool addSocket(SOCKET id, enStatusList what);
-void removeSocket(int index);
-void acceptConnection(int index);
-void receiveMessage(int index);
-bool sendMessage(int index);
-int WritePut(int index, char* filename);
-
+#include "server.h"
 
 struct stSocketState sockets[MAX_SOCKETS] = { 0 };
 int socketsCount = 0;
-
 
 void main()
 {
