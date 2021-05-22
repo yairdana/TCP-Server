@@ -1,138 +1,70 @@
-#include "server_funcs.h"
-#include <iostream>
-#include <string>
-#include <regex>
+#include "server.h"
+
 ifstream inFile;
+string folderPath("C:/temp/");
+time_t currentTime;
+
+
+// ==== GET ==== //
+void sendGetResponse(char* dataRequest, string* sendBuff) {
+	string httpStatus, response, fileData, stringFileSize, lang, filename;
+	string uri(strtok(dataRequest, " "));
+	char readBuff[512] = { 0 }, ctmp[20];
+	int buffLen = 0, fileSize = 0;
+	
+	// get query params and initial filename and lang
+	setGetParams(uri, &filename, &lang);
+
+	// openfile and determine httpstatus
+	bool ret = openFile(eRequestType::GET, &inFile, &filename, &httpStatus);
+
+	// copy file data
+	while (ret && inFile.getline(readBuff, 512))
+	{
+		fileData += readBuff;
+		fileSize += strlen(readBuff);
+	}
+
+	stringFileSize = _itoa(fileSize, ctmp, 10);
+	response = buildResponse(eRequestType::GET, &httpStatus, &stringFileSize, &fileData);
+	*sendBuff = response;
+	closeFile(&inFile);
+}
 
 
 
-bool sendGetResponse(char* dataRequest, string* sendBuff) {
-	string httpStatus;
-	string sFullMessage, tmpStringBuff;
-	char readBuff[512];
-	int buffLen = 0, intFsize = 0;
-	string strFsize;
+// ==== HEAD ==== //
+
+void sendHeadResponse(char* dataRequest, string* sendBuff) {
+	string lang, filename, response, httpStatus;
+	string uri(strtok(dataRequest, " "));
+
+	// get query params and initial filename and lang
+	setGetParams(uri, &filename, &lang);
+
+	// openfile and determine httpstatus
+	bool ret = openFile(eRequestType::HEAD, &inFile, &filename, &httpStatus);
+
+	response = buildResponse(eRequestType::HEAD, &httpStatus, NULL, NULL);
+	*sendBuff = response;
+	closeFile(&inFile);
+}
+
+// ==== POST ==== //
+void PrintPostToConsole(char* dataRequest, string* sendBuff) 
+{
+	string response;
+	string body = extractBodyFromReq(dataRequest);
 	char ctmp[20];
-	time_t rawtime;
-	time(&rawtime);
-	string folderPath("C:/temp/");
 
+	cout << "HTTP Server: Got Post Request:\n"<< body << endl;
+	string httpStatus = "200 OK";
 
-	char tmpbuff[BUFF_SIZE];
-	memset(tmpbuff, 0, BUFF_SIZE);
-	string lang, filename;
-	string uri(strtok(dataRequest, " "));
-	setGetParams(uri, &filename, &lang);
+	int intBodySize = body.length(); 
+	string bodySize = _itoa(intBodySize, ctmp, 10);
 
-	inFile.open(folderPath+filename);
-	if (inFile.is_open() == false)
-	{
-		inFile.open(folderPath + "not_found.html");
-		if (inFile.is_open() == false)
-		{
-			cout << "HTTP Server: Error at S_SEND(): " << WSAGetLastError() << endl;
-			return false;
-		}
-		httpStatus = "404 Not Found";
-	}
-	else
-	{
-		httpStatus = "200 OK";
-	}
-
-
-	sFullMessage = tmpStringBuff = tmpbuff;
-	while (inFile.getline(readBuff, 512))
-	{
-		tmpStringBuff += readBuff;
-		intFsize += strlen(readBuff);
-	}
-
-	strFsize = _itoa(intFsize, ctmp, 10);
-	sFullMessage = "HTTP/1.1 " + httpStatus + " \r\nContent-type: text/html\r\nDate: ";
-	sFullMessage += ctime(&rawtime);
-	sFullMessage += "Content-length: ";
-	sFullMessage += strFsize;
-	sFullMessage += "\r\n\r\n";
-
-	sFullMessage += tmpStringBuff;
-
-	*sendBuff = sFullMessage;
-	inFile.close();
-	return true;
-}
-
-void setGetParams(string uri, string* filename, string* lang) {
-	const int idx = uri.find("?");
-	if (idx != -1)
-	{
-		*filename = uri.substr(0, idx);
-		const int idx2 = uri.substr(idx).find("lang=");
-		if (idx2 != -1)
-		{
-			*lang = uri.substr(idx2 + idx + 5);
-			const int dotIndex = (*filename).find('.');
-			string name = (*filename).substr(0, dotIndex);
-			string end = (*filename).substr(dotIndex);
-			*filename = name + "-" + *lang + end;
-		}
-	}
-	else
-	{
-		*filename = uri;
-	}
-}
-
-
-bool sendHeadResponse(char* dataRequest, string* sendBuff) {
-	string lang, filename;
-	string uri(strtok(dataRequest, " "));
-	string folderPath("C:/temp/");
-
-	setGetParams(uri, &filename, &lang);
-	string sFullMessage;
-	time_t rawtime;
-	time(&rawtime);
-
-	inFile.open(folderPath+filename);
-	if (!inFile.is_open())
-	{
-		cout << "HTTP Server: Error at SEND(): " << WSAGetLastError() << endl;
-		return false;
-	}
-	else
-	{
-		sFullMessage = "HTTP/1.1 200 OK\r\nDate: ";
-
-		sFullMessage += ctime(&rawtime);
-		sFullMessage += "\r\nContent-type: text/html";
-		sFullMessage += "\r\n\r\n";
-		sFullMessage += "    ";
-		*sendBuff = sFullMessage;
-		inFile.close();
-	}
-}
-
-void PrintPostToConsole(char* dataRequest, string* sendBuff) {
-
-	string sFullMessage;
-	time_t rawtime;
-	time(&rawtime);	
-	string msg(dataRequest);	
-	int contIdx = msg.find("Content-Length:");
-	contIdx += msg.substr(contIdx).find("\n");
-	msg = msg.substr(contIdx);
-	
-	cout << "HTTP Server: Got Post Request:\n"<< msg << endl;
-		
-	
-	sFullMessage = "HTTP/1.1 200 OK\r\nDate: ";
-
-	sFullMessage += ctime(&rawtime);
-	sFullMessage += "\r\nContent-type: text/html";
-	sFullMessage += "\r\n\r\n";
-	sFullMessage += "    ";
-	*sendBuff = sFullMessage;
+	response = buildResponse(eRequestType::POST, &httpStatus, &bodySize, &body);
+	*sendBuff = response;
 	inFile.close();	
 }
 
@@ -145,8 +77,8 @@ bool sendOptionsResponse(char* dataRequest, string* sendBuff)
 	int buffLen = 0, intFsize = 0;
 	string strFsize;
 	char ctmp[20];
-	time_t rawtime;
-	time(&rawtime);
+	time_t currentTime;
+	time(&currentTime);
 	string folderPath("C:/temp/");
 
 
@@ -176,7 +108,7 @@ bool sendOptionsResponse(char* dataRequest, string* sendBuff)
 
 	strFsize = _itoa(intFsize, ctmp, 10);
 //	sFullMessage = "HTTP/1.1 " + httpStatus + " \r\nContent-type: text/html\r\nDate: ";
-//	sFullMessage += ctime(&rawtime);
+//	sFullMessage += ctime(&currentTime);
 //	sFullMessage += "Content-length: ";
 //	sFullMessage += strFsize;
 	//sFullMessage += "\r\n\r\n";
@@ -184,7 +116,7 @@ bool sendOptionsResponse(char* dataRequest, string* sendBuff)
 	//sFullMessage += tmpStringBuff;
 	sFullMessage = "HTTP/1.1 " + httpStatus + " \r\n";
 	sFullMessage += "Allow: OPTIONS, GET, HEAD, POST\r\nDate: ";
-	sFullMessage += ctime(&rawtime);
+	sFullMessage += ctime(&currentTime);
 	sFullMessage += "Content-length: ";
 	strFsize = _itoa(intFsize, ctmp, 10);
 	sFullMessage += strFsize;
@@ -196,8 +128,8 @@ bool sendOptionsResponse(char* dataRequest, string* sendBuff)
 
 bool sendDeleteRepsonse(char* dataRequest, string* sendBuff) {
 		string strFsize;
-		time_t rawtime;
-		time(&rawtime);
+		time_t currentTime;
+		time(&currentTime);
 		char ctmp[20];
 		int intFsize = 0;
 		string folderPath("C:/temp/");
@@ -220,7 +152,7 @@ bool sendDeleteRepsonse(char* dataRequest, string* sendBuff) {
 			cout << "Couldn't remove " << fileToRemove << endl; // the server do not indicate the client whether the operation was succesfull or not but prints out a faliure for debugging.
 		}
 		sFullMessage = "HTTP/1.1 "+ httpStatus +"\r\nDate: ";
-		sFullMessage += ctime(&rawtime);
+		sFullMessage += ctime(&currentTime);
 		sFullMessage += "Content-length: ";
 		strFsize = _itoa(intFsize, ctmp, 10);
 		sFullMessage += strFsize;
@@ -231,8 +163,8 @@ bool sendDeleteRepsonse(char* dataRequest, string* sendBuff) {
 
 bool sendPutResponse(char* dataRequest, string* sendBuff) {
 	string strFsize;
-	time_t rawtime;
-	time(&rawtime);
+	time_t currentTime;
+	time(&currentTime);
 	char ctmp[20];
 	int intFsize = 0;
 	string folderPath("C:/temp/");
@@ -275,7 +207,7 @@ bool sendPutResponse(char* dataRequest, string* sendBuff) {
 
 		break;
 	}
-	sFullMessage += ctime(&rawtime);
+	sFullMessage += ctime(&currentTime);
 	sFullMessage += "Content-length: ";
 	strFsize = _itoa(intFsize, ctmp, 10);
 	sFullMessage += strFsize;
@@ -284,6 +216,9 @@ bool sendPutResponse(char* dataRequest, string* sendBuff) {
 	*sendBuff = sFullMessage;
 	return true;
 }
+
+
+// ====== AUXILIRY FUNCTIONS ======= ///
 	
 int createOrOverwriteFile(string data, string filename)
 {
@@ -330,3 +265,95 @@ int createOrOverwriteFile(string data, string filename)
 
 
 
+bool openFile(eRequestType request, ifstream* inFile, string* filename, string* httpStatus)
+{
+
+	inFile->open(folderPath + *filename);
+	if (inFile->is_open())
+	{
+		*httpStatus = "200 OK";
+		return true;
+	}
+
+	if (request == eRequestType::GET) {
+		inFile->open(folderPath + "not_found.html");
+		if (inFile->is_open())
+		{
+			*httpStatus = "404 Not Found";
+			return true;
+		}
+	}
+
+	if (request == eRequestType::HEAD) 
+	{
+		*httpStatus = "400 Bad Request";
+		return true;
+	}
+
+
+	cout << "HTTP Server: Error at S_SEND(): " << WSAGetLastError() << endl;
+	*httpStatus = "500 Internal Server Error";
+	return false;
+}
+
+
+string buildResponse(eRequestType httpRequest, string* httpStatus, string* strFsize, string* fileData)
+{
+	string response;
+	time(&currentTime);
+
+	response = "HTTP/1.1 " + *httpStatus + " \r\n";
+	response += "Date: ";
+	response += ctime(&currentTime);
+	response += "Content-type: text/html\r\n";
+	if (httpRequest == eRequestType::GET || httpRequest == eRequestType::POST)
+	{
+		response += "Content-length: ";
+		response += *strFsize;
+		response += "\r\n\r\n";
+		response += *fileData;
+	}
+	return response;
+}
+
+void closeFile(ifstream* inFile)
+{
+	if (inFile->is_open())
+	{
+		inFile->close();
+	}
+}
+
+
+string extractBodyFromReq(char* dataRequest)
+{
+	string body(dataRequest);
+	int contIdx = body.find("Content-Length:");
+	contIdx += body.substr(contIdx).find("\n");
+	body = body.substr(contIdx);
+	return body;
+}
+
+
+void setGetParams(string uri, string* filename, string* lang) {
+	const int idx = uri.find("?");
+	if (idx == -1)
+	{
+		*filename = uri;
+		return;
+	}
+
+	*filename = uri.substr(0, idx);
+	const int idx2 = uri.substr(idx).find("lang=");
+	if (idx2 == -1)
+	{
+		return;
+	}
+
+	*lang = uri.substr(idx2 + idx + 5);
+	const int dotIndex = (*filename).find('.');
+	string name = (*filename).substr(0, dotIndex);
+	string end = (*filename).substr(dotIndex);
+	*filename = name + "-" + *lang + end;
+
+}
