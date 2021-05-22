@@ -4,7 +4,6 @@ ifstream inFile;
 string folderPath("C:/temp/");
 time_t currentTime;
 
-
 // ==== GET ==== //
 void sendGetResponse(char* dataRequest, string* sendBuff) {
 	string httpStatus, response, fileData, stringFileSize, lang, filename;
@@ -32,9 +31,7 @@ void sendGetResponse(char* dataRequest, string* sendBuff) {
 }
 
 
-
 // ==== HEAD ==== //
-
 void sendHeadResponse(char* dataRequest, string* sendBuff) {
 	string lang, filename, response, httpStatus;
 	string uri(strtok(dataRequest, " "));
@@ -51,7 +48,7 @@ void sendHeadResponse(char* dataRequest, string* sendBuff) {
 }
 
 // ==== POST ==== //
-void PrintPostToConsole(char* dataRequest, string* sendBuff) 
+void sendPostResponse(char* dataRequest, string* sendBuff)
 {
 	string response;
 	string body = extractBodyFromReq(dataRequest);
@@ -68,62 +65,12 @@ void PrintPostToConsole(char* dataRequest, string* sendBuff)
 	inFile.close();	
 }
 
-bool sendOptionsResponse(char* dataRequest, string* sendBuff)
+// ==== OPTION ==== //
+void sendOptionsResponse(char* dataRequest, string* sendBuff)
 {
-
-	string httpStatus;
-	string sFullMessage, tmpStringBuff;
-	char readBuff[512];
-	int buffLen = 0, intFsize = 0;
-	string strFsize;
-	char ctmp[20];
-	time_t currentTime;
-	time(&currentTime);
-	string folderPath("C:/temp/");
-
-
-	char tmpbuff[BUFF_SIZE];
-	memset(tmpbuff, 0, BUFF_SIZE);
-	string filename = "options.html";	
-
-	inFile.open(folderPath + filename);
-	if (inFile.is_open() == false)
-	{		
-			cout << "HTTP Server: Error at S_SEND(): " << WSAGetLastError() << endl;
-			return false;
-		
-	}
-	else
-	{
-		httpStatus = "204 No Content";
-	}
-
-
-	sFullMessage = tmpStringBuff = tmpbuff;
-	while (inFile.getline(readBuff, 512))
-	{
-		tmpStringBuff += readBuff;
-		intFsize += strlen(readBuff);
-	}
-
-	strFsize = _itoa(intFsize, ctmp, 10);
-//	sFullMessage = "HTTP/1.1 " + httpStatus + " \r\nContent-type: text/html\r\nDate: ";
-//	sFullMessage += ctime(&currentTime);
-//	sFullMessage += "Content-length: ";
-//	sFullMessage += strFsize;
-	//sFullMessage += "\r\n\r\n";
-
-	//sFullMessage += tmpStringBuff;
-	sFullMessage = "HTTP/1.1 " + httpStatus + " \r\n";
-	sFullMessage += "Allow: OPTIONS, GET, HEAD, POST\r\nDate: ";
-	sFullMessage += ctime(&currentTime);
-	sFullMessage += "Content-length: ";
-	strFsize = _itoa(intFsize, ctmp, 10);
-	sFullMessage += strFsize;
-	sFullMessage += "\r\n\r\n";
-	*sendBuff = sFullMessage;
-	inFile.close();
-	return true;
+	string httpStatus = "204 No Content";
+	string response = buildResponse(eRequestType::OPTIONS, &httpStatus, NULL, NULL);
+	*sendBuff = response;
 }
 
 bool sendDeleteRepsonse(char* dataRequest, string* sendBuff) {
@@ -303,11 +250,20 @@ string buildResponse(eRequestType httpRequest, string* httpStatus, string* strFs
 	time(&currentTime);
 
 	response = "HTTP/1.1 " + *httpStatus + " \r\n";
+
 	response += "Date: ";
 	response += ctime(&currentTime);
-	response += "Content-type: text/html\r\n";
+	if (httpRequest == eRequestType::OPTIONS)
+	{
+		response += "Allow: OPTIONS, GET, HEAD, POST, PUT, DELETE, TRACE\r\n";
+		response += "Content-type: text/html\r\n";
+		response += "Content-length: 0";
+		response += "\r\n\r\n";
+	}
+
 	if (httpRequest == eRequestType::GET || httpRequest == eRequestType::POST)
 	{
+		response += "Content-type: text/html\r\n";
 		response += "Content-length: ";
 		response += *strFsize;
 		response += "\r\n\r\n";
@@ -324,13 +280,13 @@ void closeFile(ifstream* inFile)
 	}
 }
 
-
 string extractBodyFromReq(char* dataRequest)
 {
 	string body(dataRequest);
 	int contIdx = body.find("Content-Length:");
 	contIdx += body.substr(contIdx).find("\n");
 	body = body.substr(contIdx);
+	trim(body);
 	return body;
 }
 
@@ -356,4 +312,26 @@ void setGetParams(string uri, string* filename, string* lang) {
 	string end = (*filename).substr(dotIndex);
 	*filename = name + "-" + *lang + end;
 
+}
+
+
+
+// trim from start (in place)
+static inline void ltrim(std::string& s) {
+	s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) {
+		return !std::isspace(ch);
+	}));
+}
+
+// trim from end (in place)
+static inline void rtrim(string& s) {
+	s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) {
+		return !std::isspace(ch);
+	}).base(), s.end());
+}
+
+// trim from both ends (in place)
+static inline void trim(string& s) {
+	ltrim(s);
+	rtrim(s);
 }

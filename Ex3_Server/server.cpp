@@ -156,6 +156,7 @@ void receiveMessage(int index)
 	}
 }
 
+// TODO: REFACTOR //
 bool sendMessage(int index)
 {
 	int bytesSent = 0;
@@ -176,40 +177,40 @@ bool sendMessage(int index)
 	sockets[index].requestTime = time(0);
 	switch (sockets[index].httpRequest)
 	{
-	case eRequestType::HEAD:
-		sendHeadResponse(sockets[index].data, &sendBuff);
-		break;
-	case eRequestType::GET:
-		sendGetResponse(sockets[index].data, &sendBuff);
-		break;
-	case eRequestType::PUT:
-		sendPutResponse(sockets[index].data, &sendBuff);
-		break;
-	case eRequestType::_DELETE:
-		sendDeleteRepsonse(sockets[index].data, &sendBuff);
-		break;
-	case eRequestType::TRACE:
-
-		intFsize = strlen("TRACE");
-		intFsize += strlen(sockets[index].data);
-		sFullMessage = "HTTP/1.1 200 OK \r\nContent-type: message/http\r\nDate: ";
-		sFullMessage += ctime(&rawtime);
-		sFullMessage += "Content-length: ";
-		strFsize = _itoa(intFsize, ctmp, 10);
-		sFullMessage += strFsize;
-		sFullMessage += "\r\n\r\n";
-
-		sFullMessage += "TRACE";
-		sFullMessage += sockets[index].data;
-		buffLen = sFullMessage.size();
-		sendBuff = sFullMessage;
-		break;
-	case eRequestType::OPTIONS:
-			sendOptionsResponse(sockets[index].data, &sendBuff);
+		case eRequestType::HEAD:
+			sendHeadResponse(sockets[index].data, &sendBuff);
 			break;
-	case eRequestType::POST:
-			PrintPostToConsole(sockets[index].data, &sendBuff);
+		case eRequestType::GET:
+			sendGetResponse(sockets[index].data, &sendBuff);
 			break;
+		case eRequestType::PUT:
+			sendPutResponse(sockets[index].data, &sendBuff);
+			break;
+		case eRequestType::_DELETE:
+			sendDeleteRepsonse(sockets[index].data, &sendBuff);
+			break;
+		case eRequestType::TRACE:
+
+			intFsize = strlen("TRACE");
+			intFsize += strlen(sockets[index].data);
+			sFullMessage = "HTTP/1.1 200 OK \r\nContent-type: message/http\r\nDate: ";
+			sFullMessage += ctime(&rawtime);
+			sFullMessage += "Content-length: ";
+			strFsize = _itoa(intFsize, ctmp, 10);
+			sFullMessage += strFsize;
+			sFullMessage += "\r\n\r\n";
+
+			sFullMessage += "TRACE";
+			sFullMessage += sockets[index].data;
+			buffLen = sFullMessage.size();
+			sendBuff = sFullMessage;
+			break;
+		case eRequestType::OPTIONS:
+				sendOptionsResponse(sockets[index].data, &sendBuff);
+				break;
+		case eRequestType::POST:
+				sendPostResponse(sockets[index].data, &sendBuff);
+				break;
 	}
 
 	buffLen = sendBuff.size();
