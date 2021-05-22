@@ -185,7 +185,7 @@ bool sendPutResponse(char* dataRequest, string* sendBuff) {
 	//string datarequest(dataRequest);
 	//string filename = datarequest.substr(0, datarequest.find(" "));
 	//string data = datarequest.substr(datarequest.find(" "));
-
+	filename = "C:/temp/" + filename;
 	int retCode = createOrOverwriteFile(data, filename);
 	switch (retCode)
 	{
@@ -245,7 +245,9 @@ int createOrOverwriteFile(string data, string filename)
 		cout << "HTTP Server: Error writing file to local storage: " << WSAGetLastError() << endl;
 		return 0;//error
 	}
-	tmp1 = strtok(NULL, "\r\n\r\n"); //tmp1 = strtok(data, "\r\n\r\n")
+
+	tmp1 = strtok((char*)data.c_str(), "\r\n\r\n"); //tmp1 = strtok(data, "\r\n\r\n")
+	tmp1 = (char*)extractBodyFromReq((char*)data.c_str()).c_str();
 
 	if (tmp1 == 0)
 	{
@@ -253,10 +255,10 @@ int createOrOverwriteFile(string data, string filename)
 	}
 	else
 	{
-		while (*tmp1 != 0)
+		if (*tmp1 != 0)
 		{
 			outPutFile << tmp1;
-			tmp1 += (strlen(tmp1) + 1); 
+			//tmp1 += (strlen(tmp1) + 1); 
 		}
 	}
 	outPutFile.close();
