@@ -16,6 +16,7 @@ const char* httpRequests[] =
 	"OPTIONS"
 };
 
+
 void main()
 {
 
@@ -190,20 +191,7 @@ bool sendMessage(int index)
 			sendDeleteRepsonse(sockets[index].data, &sendBuff);
 			break;
 		case eRequestType::TRACE:
-
-			intFsize = strlen("TRACE");
-			intFsize += strlen(sockets[index].data);
-			sFullMessage = "HTTP/1.1 200 OK \r\nContent-type: message/http\r\nDate: ";
-			sFullMessage += ctime(&rawtime);
-			sFullMessage += "Content-length: ";
-			strFsize = _itoa(intFsize, ctmp, 10);
-			sFullMessage += strFsize;
-			sFullMessage += "\r\n\r\n";
-
-			sFullMessage += "TRACE";
-			sFullMessage += sockets[index].data;
-			buffLen = sFullMessage.size();
-			sendBuff = sFullMessage;
+			sendTraceResponse(sockets[index].data, &sendBuff);			
 			break;
 		case eRequestType::OPTIONS:
 				sendOptionsResponse(sockets[index].data, &sendBuff);

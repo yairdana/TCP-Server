@@ -99,24 +99,15 @@ bool sendPutResponse(char* dataRequest, string* sendBuff) {
 	int intFsize = 0;
 	string folderPath("C:/temp/");
 	string filename,sFullMessage;
+	string mydata = extractBodyFromReq(dataRequest);
 
-	string copy (dataRequest);
-	
+	string copy (dataRequest);	
 	string uri(strtok((char*)copy.c_str(), " "));
-	
-
 	setGetParams(uri, &filename, NULL);
-
-	string data(dataRequest);
-	int Idx = data.find("Content-Length:");
-	Idx += data.substr(Idx).find("\n");
-	data = data.substr(Idx);
-
-	//string datarequest(dataRequest);
-	//string filename = datarequest.substr(0, datarequest.find(" "));
-	//string data = datarequest.substr(datarequest.find(" "));
-
-	int retCode = createOrOverwriteFile(data, filename);
+	
+	filename = folderPath + filename;
+	
+	int retCode = createOrOverwriteFile(mydata, filename);
 	switch (retCode)
 	{
 	case 0:
@@ -137,7 +128,8 @@ bool sendPutResponse(char* dataRequest, string* sendBuff) {
 
 		break;
 	}
-	sFullMessage += ctime(&currentTime);
+	//does it need to return more?
+	sFullMessage += ctime(&currentTime); 
 	sFullMessage += "Content-length: ";
 	strFsize = _itoa(intFsize, ctmp, 10);
 	sFullMessage += strFsize;
@@ -147,20 +139,37 @@ bool sendPutResponse(char* dataRequest, string* sendBuff) {
 	return true;
 }
 
+void sendTraceResponse(char* dataRequest, string* sendBuff) 
+{	
+	int buffLen = 0, intFsize = 0;
+	string strFsize;
+	string sFullMessage, tmpStringBuff;
+	time_t rawtime;
+	time(&rawtime);
+	char ctmp[20];
+
+	intFsize = strlen("TRACE");
+	intFsize += strlen(dataRequest);
+	sFullMessage = "HTTP/1.1 200 OK \r\nContent-type: message/http\r\nDate: ";
+	sFullMessage += ctime(&rawtime);
+	sFullMessage += "Content-length: ";
+	strFsize = _itoa(intFsize, ctmp, 10);
+	sFullMessage += strFsize;
+	sFullMessage += "\r\n\r\n";
+
+	sFullMessage += "TRACE";
+	sFullMessage += dataRequest;
+	buffLen = sFullMessage.size();
+	*sendBuff = sFullMessage;
+}
+
 
 // ====== AUXILIRY FUNCTIONS ======= ///
 	
-int createOrOverwriteFile(string data, string filename)
+int createOrOverwriteFile(string data, string filename) 
 {
-	string tmp;
-	char* tmp1 = 0;
-	int buffLen = 0;
 	int retCode = 200;//ok
 
-//	tmp = strtok(NULL, ":");
-//	tmp = strtok(NULL, ":");
-//	tmp = data.substr(data.find("Content-Length:"));
-//	sscanf(tmp1, "%d", &buffLen);
 	ofstream outPutFile;
 	outPutFile.open(filename, ios::in);
 
@@ -175,25 +184,18 @@ int createOrOverwriteFile(string data, string filename)
 		cout << "HTTP Server: Error writing file to local storage: " << WSAGetLastError() << endl;
 		return 0;//error
 	}
-	tmp1 = strtok(NULL, "\r\n\r\n"); //tmp1 = strtok(data, "\r\n\r\n")
 
-	if (tmp1 == 0)
+	if (data.empty()) //should it write an empty file or not touch existing one ?
 	{
 		retCode = 204; //no content
 	}
 	else
 	{
-		while (*tmp1 != 0)
-		{
-			outPutFile << tmp1;
-			tmp1 += (strlen(tmp1) + 1); 
-		}
+		outPutFile << data;
 	}
 	outPutFile.close();
 	return retCode;
 }
-
-
 
 bool openFile(eRequestType request, ifstream* inFile, string* filename, string* httpStatus)
 {

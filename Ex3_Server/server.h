@@ -84,6 +84,7 @@ void sendPostResponse(char* dataRequest, string* sendBuff);
 void sendOptionsResponse(char* dataRequest, string* sendBuff);
 void sendDeleteRepsonse(char* dataRequest, string* sendBuff);
 bool sendPutResponse(char* dataRequest, string* sendBuff);
+void sendTraceResponse(char* dataRequest, string* sendBuff);
 int createOrOverwriteFile(string data, string filename);
 
 bool removeFile(string fileToRemove, string* httpStatus);
