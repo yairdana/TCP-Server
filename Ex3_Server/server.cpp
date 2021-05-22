@@ -1,121 +1,39 @@
 #include "server.h"
 
-struct stSocketState sockets[MAX_SOCKETS] = { 0 };
+struct SocketState sockets[MAX_SOCKETS] = { 0 };
 int socketsCount = 0;
+
+const char* httpRequests[] =
+{
+	"GET",
+	"HEAD",
+	"POST"
+	"PUT",
+	"DELETE",
+	"TRACE",
+	"OPTIONS"
+};
 
 void main()
 {
-	time_t tCurrentTime;
+	time_t currentTime;
 
-	//set timeout for Select function
-	struct timeval tvTimeOut;
-	tvTimeOut.tv_sec = 2;
-	tvTimeOut.tv_usec = 0;
-
-
-	// Initialize Winsock (Windows Sockets).
-
-	// Create a WSADATA object called wsaData.
-	// The WSADATA structure contains information about the Windows 
-	// Sockets implementation.
-	WSAData wsaData;
-
-	// Call WSAStartup and return its value as an integer and check for errors.
-	// The WSAStartup function initiates the use of WS2_32.DLL by a process.
-	// First parameter is the version number 2.2.
-	// The WSACleanup function destructs the use of WS2_32.DLL by a process.
-	if (NO_ERROR != WSAStartup(MAKEWORD(2, 2), &wsaData))
-	{
-		cout << "HTTP Server: Error at WSAStartup()\n";
-		return;
-	}
-	// Server side:
-	// Create and bind a socket to an internet address.
-	// Listen through the socket for incoming connections.
-
-	// After initialization, a SOCKET object is ready to be instantiated.
-
-	// Create a SOCKET object called listenSocket. 
-	// For this application:	use the Internet address family (AF_INET), 
-	//							streaming sockets (SOCK_STREAM), 
-	//							and the TCP/IP protocol (IPPROTO_TCP).
-	SOCKET listenSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-	// Check for errors to ensure that the socket is a valid socket.
-	// Error detection is a key part of successful networking code. 
-	// If the socket call fails, it returns INVALID_SOCKET. 
-	// The if statement in the previous code is used to catch any errors that
-	// may have occurred while creating the socket. WSAGetLastError returns an 
-	// error number associated with the last error that occurred.
-	if (INVALID_SOCKET == listenSocket)
-	{
-		cout << "HTTP Server: Error at socket(): " << WSAGetLastError() << endl;
-		WSACleanup();
-		return;
-	}
-	// For a server to communicate on a network, it must bind the socket to 
-	// a network address.
-
-	// Need to assemble the required data for connection in sockaddr structure.
-
-	// Create a sockaddr_in object called serverService. 
-
-	sockaddr_in serverService;
-	// Address family (must be AF_INET - Internet address family).
-	serverService.sin_family = AF_INET;
-	// IP address. The sin_addr is a union (s_addr is a unsigned long 
-	// (4 bytes) data type).
-	// inet_addr (Iternet address) is used to convert a string (char *) 
-	// into unsigned long.
-	// The IP address is INADDR_ANY to accept connections on all interfaces.
-	serverService.sin_addr.s_addr = INADDR_ANY;
-	// IP Port. The htons (host to network - short) function converts an
-	// unsigned short from host to TCP/IP network byte order 
-	// (which is big-endian). 
-	serverService.sin_port = htons(PORT);
-
-	// Bind the socket for client's requests.
-
-	// The bind function establishes a connection to a specified socket.
-	// The function uses the socket handler, the sockaddr structure (which
-	// defines properties of the desired connection) and the length of the
-	// sockaddr structure (in bytes).
-	if (SOCKET_ERROR == bind(listenSocket, (SOCKADDR*)&serverService, sizeof(serverService)))
-	{
-		cout << "HTTP Server: Error at bind(): " << WSAGetLastError() << endl;
-		closesocket(listenSocket);
-		WSACleanup();
-		return;
-	}
-
-	// Listen on the Socket for incoming connections.
-	// This socket accepts only one connection (no pending connections 
-	// from other clients). This sets the backlog parameter.
-	if (SOCKET_ERROR == listen(listenSocket, 50))
-	{
-		cout << "HTTP Server: Error at LISTEN(): " << WSAGetLastError() << endl;
-		closesocket(listenSocket);
-		WSACleanup();
-		return;
-	}
-
-	addSocket(listenSocket, LISTEN);
-	// Accept connections and handles them one by one.
+	WSAData wsaData = initWsaData();
+	SOCKET listenSocket = initSocket();
+	sockaddr_in serverService = createSocketAddr();
+	bindSocketForClientRequests(&listenSocket, &serverService);
+	listenOnSocketForIncomingConnection(&listenSocket);
+	addSocket(listenSocket, eSocketStatus::LISTEN);
 
 	cout << "Waiting for client connections..." << endl;
-
+	// Accept connections and handles them one by one.
 	while (true)
 	{
-		// The select function determines the status of one or more sockets,
-		// waiting if necessary, to perform asynchronous I/O. Use fd_sets for
-		// sets of handles for reading, writing and exceptions. select gets "timeout" for waiting
-		// and still performing other operations (Use NULL for blocking). Finally,
-		// select returns the number of descriptors which are ready for use (use FD_ISSET
-		// macro to check which descriptor in each set is ready to be used).
+
 		for (int i = 1; i < MAX_SOCKETS; i++)
 		{
-			tCurrentTime = time(0);
-			if ((tCurrentTime - sockets[i].tLastActivity > 120) && (sockets[i].tLastActivity != 0))
+			currentTime = time(0);
+			if ((currentTime - sockets[i].requestTime > 120) && (sockets[i].requestTime != 0))
 			{
 				removeSocket(i);
 			}
@@ -125,7 +43,7 @@ void main()
 		FD_ZERO(&waitRecv);
 		for (int i = 0; i < MAX_SOCKETS; i++)
 		{
-			if ((sockets[i].recv == LISTEN) || (sockets[i].recv == RECEIVE))
+			if ((sockets[i].recv == eSocketStatus::LISTEN) || (sockets[i].recv == eSocketStatus::RECEIVE))
 				FD_SET(sockets[i].id, &waitRecv);
 		}
 
@@ -133,7 +51,7 @@ void main()
 		FD_ZERO(&waitSend);
 		for (int i = 0; i < MAX_SOCKETS; i++)
 		{
-			if (sockets[i].send == SEND)
+			if (sockets[i].send == eSocketStatus::SEND)
 				FD_SET(sockets[i].id, &waitSend);
 		}
 
@@ -158,11 +76,11 @@ void main()
 				nfd--;
 				switch (sockets[i].recv)
 				{
-				case LISTEN:
+				case eSocketStatus::LISTEN:
 					acceptConnection(i);
 					break;
 
-				case RECEIVE:
+				case eSocketStatus::RECEIVE:
 					receiveMessage(i);
 					break;
 				}
@@ -176,7 +94,7 @@ void main()
 				nfd--;
 				switch (sockets[i].send)
 				{
-				case SEND:
+				case eSocketStatus::SEND:
 					if (!sendMessage(i))
 						continue;
 					break;
@@ -192,17 +110,17 @@ void main()
 	WSACleanup();
 }
 
-bool addSocket(SOCKET id, enStatusList what)
+bool addSocket(SOCKET id, eSocketStatus what)
 {
 	for (int i = 0; i < MAX_SOCKETS; i++)
 	{
-		if (sockets[i].recv == EMPTY)
+		if (sockets[i].recv == eSocketStatus::EMPTY)
 		{
 			sockets[i].id = id;
 			sockets[i].recv = what;
-			sockets[i].send = IDLE;
-			sockets[i].iSocketDataLen = 0;
-			sockets[i].tLastActivity = time(0);
+			sockets[i].send = eSocketStatus::IDLE;
+			sockets[i].dataLen = 0;
+			sockets[i].requestTime = time(0);
 			socketsCount++;
 			return (true);
 		}
@@ -213,16 +131,17 @@ bool addSocket(SOCKET id, enStatusList what)
 void removeSocket(int index)
 {
 	cout << "The socket number " << index << " has been removed" << endl;
-	sockets[index].recv = EMPTY;
-	sockets[index].send = EMPTY;
-	sockets[index].tLastActivity = 0;
+	sockets[index].recv = eSocketStatus::EMPTY;
+	sockets[index].send = eSocketStatus::EMPTY;
+	sockets[index].dataLen = 0;
+	sockets[index].requestTime = 0;
 	socketsCount--;
 }
 
 void acceptConnection(int index)
 {
 	SOCKET id = sockets[index].id;
-	sockets[index].tLastActivity = time(0);
+	sockets[index].requestTime = time(0);
 	struct sockaddr_in from;		// Address of sending partner
 	int fromLen = sizeof(from);
 
@@ -234,7 +153,6 @@ void acceptConnection(int index)
 	}
 	cout << "HTTP Server: Client " << inet_ntoa(from.sin_addr) << ":" << ntohs(from.sin_port) << " is connected." << endl;
 
-
 	//
 	// Set the socket to be in non-blocking mode.
 	//
@@ -245,7 +163,7 @@ void acceptConnection(int index)
 		cout << "HTTP Server: Error at ioctlsocket(): " << WSAGetLastError() << endl;
 	}
 
-	if (addSocket(msgSocket, RECEIVE) == false)
+	if (addSocket(msgSocket, eSocketStatus::RECEIVE) == false)
 	{
 		cout << "\t\tToo many connections, dropped!\n";
 		closesocket(id);
@@ -258,82 +176,38 @@ void receiveMessage(int index)
 	SOCKET msgSocket = sockets[index].id;
 	char* tmp = NULL;
 
-	int len = sockets[index].iSocketDataLen;
-	int bytesRecv = recv(msgSocket, &sockets[index].sSocketData[len], sizeof(sockets[index].sSocketData) - len, 0);
+	int len = sockets[index].dataLen;
+	int bytesRecv = recv(msgSocket, &sockets[index].data[len], sizeof(sockets[index].data) - len, 0);
 
-	if (SOCKET_ERROR == bytesRecv)
+	if (bytesRecv == SOCKET_ERROR || bytesRecv == 0)
 	{
-		cout << "HTTP Server: Error at recv(): " << WSAGetLastError() << endl;
-		closesocket(msgSocket);
-		removeSocket(index);
-		return;
-	}
-	sockets[index].tLastActivity = time(0);
-	if (bytesRecv == 0)
-	{
-		closesocket(msgSocket);
-		removeSocket(index);
-		return;
-	}
-	else
-	{
-		sockets[index].sSocketData[len + bytesRecv] = '\0';
-		cout << "HTTP Server: Recieved: " << bytesRecv << " bytes of \"" << &sockets[index].sSocketData[len] << "\n---message---\n";
-		sockets[index].iSocketDataLen += bytesRecv;
-		if (sockets[index].iSocketDataLen > 0)
+		if (bytesRecv == SOCKET_ERROR)
 		{
-			if (strncmp(sockets[index].sSocketData, "HEAD", 4) == 0)
-			{
-				sockets[index].send = SEND;
-				sockets[index].HTTP_command = HEAD;
-				strcpy(sockets[index].sSocketData, &sockets[index].sSocketData[6]);
-				sockets[index].iSocketDataLen = strlen(sockets[index].sSocketData);
-				sockets[index].sSocketData[sockets[index].iSocketDataLen] = NULL;
-				return;
-			}
-			else if (strncmp(sockets[index].sSocketData, "GET", 3) == 0)
-			{
-				sockets[index].HTTP_command = GET;
-				strcpy(sockets[index].sSocketData, &sockets[index].sSocketData[5]);
-				sockets[index].iSocketDataLen = strlen(sockets[index].sSocketData);
-				sockets[index].sSocketData[sockets[index].iSocketDataLen] = NULL;	//did you mean \0			
-			}
-			else if (strncmp(sockets[index].sSocketData, "PUT", 3) == 0)
-			{				
-				sockets[index].HTTP_command = PUT;	
-				strcpy(sockets[index].sSocketData, &sockets[index].sSocketData[5]);
-				sockets[index].iSocketDataLen = strlen(sockets[index].sSocketData);
-				sockets[index].sSocketData[sockets[index].iSocketDataLen] = NULL;
-			}
-			else if (strncmp(sockets[index].sSocketData, "DELETE", 6) == 0)
-			{
-				strcpy(sockets[index].sSocketData, &sockets[index].sSocketData[8]);				
-				sockets[index].HTTP_command = D_DELETE;				
-			}
-			else if (strncmp(sockets[index].sSocketData, "TRACE", 5) == 0)
-			{				
-				sockets[index].HTTP_command = TRACE;
-				strcpy(sockets[index].sSocketData, &sockets[index].sSocketData[5]);
-				sockets[index].iSocketDataLen = strlen(sockets[index].sSocketData);
-				sockets[index].sSocketData[sockets[index].iSocketDataLen] = NULL;
-			}
-			else if (strncmp(sockets[index].sSocketData, "POST", 4) == 0)
-			{
-				sockets[index].HTTP_command = POST;
-				strcpy(sockets[index].sSocketData, &sockets[index].sSocketData[6]);
-				sockets[index].iSocketDataLen = strlen(sockets[index].sSocketData);
-				sockets[index].sSocketData[sockets[index].iSocketDataLen] = NULL;				
-			}
-			else if (strncmp(sockets[index].sSocketData, "OPTIONS", 7) == 0)
-			{				
-				sockets[index].HTTP_command = OPTIONS;
-				//strcpy(sockets[index].sSocketData, &sockets[index].sSocketData[5]);
-				//sockets[index].iSocketDataLen = strlen(sockets[index].sSocketData);
-				//sockets[index].sSocketData[sockets[index].iSocketDataLen] = NULL;			
-			}
-			sockets[index].send = SEND;
+			cout << "HTTP Server: Error at recv(): " << WSAGetLastError() << endl;
+		}
+		closesocket(msgSocket);
+		removeSocket(index);
+		return;
+	}
+	sockets[index].requestTime = time(0);
+
+	sockets[index].data[len + bytesRecv] = '\0';
+	cout << "HTTP Server: Recieved: " << bytesRecv << " bytes of \"" << &sockets[index].data[len] << "\n---message---\n";
+	sockets[index].dataLen += bytesRecv;
+
+	if (sockets[index].dataLen > 0)
+	{	
+		eRequestType httpRequest = extractRequestFromData(&(sockets[index]));
+		if (httpRequest == eRequestType::UNKNOWN)
+		{
+			cout << "HTTP Server: server does not support this http request" << endl;
+			closesocket(msgSocket);
+			removeSocket(index);
 			return;
 		}
+
+		updateSocketRequestAndData(&(sockets[index]), httpRequest);
+		return;
 	}
 }
 
@@ -354,25 +228,25 @@ bool sendMessage(int index)
 	ifstream inFile;
 	time(&rawtime);
 	SOCKET msgSocket = sockets[index].id;
-	sockets[index].tLastActivity = time(0);
-	switch (sockets[index].HTTP_command)
+	sockets[index].requestTime = time(0);
+	switch (sockets[index].httpRequest)
 	{
-	case HEAD:
-		sendHeadResponse(sockets[index].sSocketData, &sendBuff);
+	case eRequestType::HEAD:
+		sendHeadResponse(sockets[index].data, &sendBuff);
 		break;
-	case GET:
-		sendGetResponse(sockets[index].sSocketData, &sendBuff);
+	case eRequestType::GET:
+		sendGetResponse(sockets[index].data, &sendBuff);
 		break;
-	case PUT:
-		sendPutResponse(sockets[index].sSocketData, &sendBuff);
+	case eRequestType::PUT:
+		sendPutResponse(sockets[index].data, &sendBuff);
 		break;
-	case D_DELETE:
-		sendDeleteRepsonse(sockets[index].sSocketData, &sendBuff);
+	case eRequestType::_DELETE:
+		sendDeleteRepsonse(sockets[index].data, &sendBuff);
 		break;
-	case TRACE:
+	case eRequestType::TRACE:
 
 		intFsize = strlen("TRACE");
-		intFsize += strlen(sockets[index].sSocketData);
+		intFsize += strlen(sockets[index].data);
 		sFullMessage = "HTTP/1.1 200 OK \r\nContent-type: message/http\r\nDate: ";
 		sFullMessage += ctime(&rawtime);
 		sFullMessage += "Content-length: ";
@@ -381,22 +255,22 @@ bool sendMessage(int index)
 		sFullMessage += "\r\n\r\n";
 
 		sFullMessage += "TRACE";
-		sFullMessage += sockets[index].sSocketData;
+		sFullMessage += sockets[index].data;
 		buffLen = sFullMessage.size();
 		sendBuff = sFullMessage;
 		break;
-	case OPTIONS:
-			sendOptionsResponse(sockets[index].sSocketData, &sendBuff);
+	case eRequestType::OPTIONS:
+			sendOptionsResponse(sockets[index].data, &sendBuff);
 			break;
-	case POST:
-			PrintPostToConsole(sockets[index].sSocketData, &sendBuff);
+	case eRequestType::POST:
+			PrintPostToConsole(sockets[index].data, &sendBuff);
 			break;
 	}
 
 	buffLen = sendBuff.size();
 	bytesSent = send(msgSocket, sendBuff.c_str(), buffLen, 0);
-	memset(sockets[index].sSocketData, 0, BUFF_SIZE);
-	sockets[index].iSocketDataLen = 0;
+	memset(sockets[index].data, 0, BUFF_SIZE);
+	sockets[index].dataLen = 0;
 	if (SOCKET_ERROR == bytesSent)
 	{
 		cout << "HTTP Server: Error at S_SEND(): " << WSAGetLastError() << endl;
@@ -404,6 +278,115 @@ bool sendMessage(int index)
 	}
 
 	cout << "HTTP Server: Sent: " << bytesSent << "\\" << buffLen << " bytes of\n \"" << sendBuff << "\n---message---\n";
-	sockets[index].send = IDLE;
+	sockets[index].send = eSocketStatus::IDLE;
 	return true;
+}
+
+
+WSAData initWsaData()
+{
+	WSAData wsaData;
+
+	// Call WSAStartup and return its value as an integer and check for errors.
+	if (NO_ERROR != WSAStartup(MAKEWORD(2, 2), &wsaData))
+	{
+		cout << "HTTP Server: Error at WSAStartup()\n";
+		exit(ERROR);
+	}
+	return wsaData;
+}
+
+SOCKET initSocket()
+{
+	SOCKET listenSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+
+	// Check for errors to ensure that the socket is a valid socket.
+	if (INVALID_SOCKET == listenSocket)
+	{
+		cout << "HTTP Server: Error at socket(): " << WSAGetLastError() << endl;
+		WSACleanup();
+		exit(ERROR);
+	}
+	return listenSocket;
+}
+
+
+void bindSocketForClientRequests(SOCKET* listenSocket, sockaddr_in* serverService)
+{
+	if (SOCKET_ERROR == bind(*listenSocket, (SOCKADDR*)serverService, sizeof(*serverService)))
+	{
+		cout << "HTTP Server: Error at bind(): " << WSAGetLastError() << endl;
+		closesocket(*listenSocket);
+		WSACleanup();
+		exit(ERROR);
+	}
+}
+
+void listenOnSocketForIncomingConnection(SOCKET* listenSocket)
+{
+	if (SOCKET_ERROR == listen(*listenSocket, 50))
+	{
+		cout << "HTTP Server: Error at LISTEN(): " << WSAGetLastError() << endl;
+		closesocket(*listenSocket);
+		WSACleanup();
+		exit(ERROR);
+	}
+}
+
+sockaddr_in createSocketAddr()
+{
+	sockaddr_in serverService;
+	serverService.sin_family = AF_INET;
+	serverService.sin_addr.s_addr = INADDR_ANY;
+	serverService.sin_port = htons(PORT);
+	return serverService;
+}
+
+
+
+void updateSocketRequestAndData(SocketState* socket, eRequestType request)
+{
+	int dataindex = strlen(httpRequests[(int)request]) + 2;
+	socket->send = eSocketStatus::SEND;
+	socket->httpRequest = request;
+	strcpy(socket->data, &(socket->data[dataindex]));
+	socket->dataLen = strlen(socket->data);
+	socket->data[socket->dataLen] = NULL;
+
+}
+
+
+eRequestType extractRequestFromData(SocketState* socket)
+{	
+	eRequestType result = eRequestType::UNKNOWN;
+	if (strncmp(socket->data, httpRequests[(int)eRequestType::GET], strlen(httpRequests[(int)eRequestType::GET])) == 0)
+	{
+		result = eRequestType::GET;
+	}
+	else if (strncmp(socket->data, httpRequests[(int)eRequestType::HEAD], strlen(httpRequests[(int)eRequestType::HEAD])) == 0)
+	{
+		result = eRequestType::HEAD;
+	}
+	else if (strncmp(socket->data, httpRequests[(int)eRequestType::POST], strlen(httpRequests[(int)eRequestType::POST])) == 0)
+	{
+		result = eRequestType::POST;
+	}
+	else if (strncmp(socket->data, httpRequests[(int)eRequestType::PUT], strlen(httpRequests[(int)eRequestType::PUT])) == 0)
+	{
+		result = eRequestType::PUT;
+	}
+	else if (strncmp(socket->data, httpRequests[(int)eRequestType::_DELETE], strlen(httpRequests[(int)eRequestType::_DELETE])) == 0)
+	{
+		result = eRequestType::_DELETE;
+	}
+	else if (strncmp(socket->data, httpRequests[(int)eRequestType::TRACE], strlen(httpRequests[(int)eRequestType::TRACE])) == 0)
+	{
+		result = eRequestType::TRACE;
+	}
+	else if (strncmp(socket->data, httpRequests[(int)eRequestType::OPTIONS], strlen(httpRequests[(int)eRequestType::OPTIONS])) == 0)
+	{
+		result = eRequestType::OPTIONS;
+	}
+
+	return result;
 }

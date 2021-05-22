@@ -14,11 +14,11 @@ using namespace std;
 #include <regex>
 
 #define BUFF_SIZE 1024
-
+#define ERROR -1
 const int PORT = 8000;
 const int MAX_SOCKETS = 60;
 
-typedef enum enStatusList {
+enum class eSocketStatus {
 	EMPTY = 0,
 	LISTEN,
 	RECEIVE,
@@ -26,35 +26,43 @@ typedef enum enStatusList {
 	SEND,
 };
 
-typedef enum enCommandList {
-	GET = 1,
+enum class eRequestType {
+	UNKNOWN = -1,
+	GET = 0,
 	HEAD,
-	PUT,
 	POST,
-	D_DELETE,
+	PUT,
+	_DELETE,
 	TRACE,
-	OPTIONS
+	OPTIONS,
 };
 
 
-struct stSocketState
+struct SocketState
 {
 	SOCKET id;
-	enStatusList recv;
-	enStatusList send;
-	enCommandList HTTP_command;
-	time_t tLastActivity;
-	char sSocketData[BUFF_SIZE];
-	int iSocketDataLen;
+	eSocketStatus recv;
+	eSocketStatus send;
+	eRequestType httpRequest;
+	time_t requestTime;
+	char data[BUFF_SIZE];
+	int dataLen;
 };
 
 
 // =====  Main Functions ==== //
-bool addSocket(SOCKET id, enStatusList what);
+bool addSocket(SOCKET id, eSocketStatus what);
 void removeSocket(int index);
 void acceptConnection(int index);
 void receiveMessage(int index);
 bool sendMessage(int index);
+WSAData initWsaData();
+SOCKET initSocket();
+sockaddr_in createSocketAddr();
+void bindSocketForClientRequests(SOCKET* listenSocket, sockaddr_in* serverService);
+void listenOnSocketForIncomingConnection(SOCKET* listenSocket);
+void updateSocketRequestAndData(SocketState* socket, eRequestType request);
+eRequestType extractRequestFromData(SocketState* socket);
 
 // =====  Aux Functions ==== //
 bool sendGetResponse(char* dataRequest, string* sendBuff);
@@ -65,5 +73,3 @@ bool sendOptionsResponse(char* dataRequest, string* sendBuff);
 bool sendDeleteRepsonse(char* dataRequest, string* sendBuff);
 bool sendPutResponse(char* dataRequest, string* sendBuff);
 int createOrOverwriteFile(string data, string filename);
-
-
