@@ -73,39 +73,22 @@ void sendOptionsResponse(char* dataRequest, string* sendBuff)
 	*sendBuff = response;
 }
 
-bool sendDeleteRepsonse(char* dataRequest, string* sendBuff) {
-		string strFsize;
-		time_t currentTime;
-		time(&currentTime);
-		char ctmp[20];
-		int intFsize = 0;
-		string folderPath("C:/temp/");
-
-		string sFullMessage;	
-		string fileToRemove =folderPath + strtok(dataRequest, " ");
-		string httpStatus = "204 No Content";
-		if (remove(fileToRemove.c_str()) != NULL) {
-			ifstream file(fileToRemove);
-			if(!file)
-			{
-				httpStatus = "400 Bad Request";
-			}
-			else 
-			{
-				httpStatus = "500 Internal Server Error";
-				file.close();
-			}
+// ==== DELETE ==== // 
+void sendDeleteRepsonse(char* dataRequest, string* sendBuff) 
+{
+	string httpStatus, body, bodySize, response= "";
+	int intBodySize = 0;
+	char ctmp[20];
+	string fileToRemove =folderPath + strtok(dataRequest, " ");
+	bool ret = removeFile(fileToRemove, &httpStatus);
 	
-			cout << "Couldn't remove " << fileToRemove << endl; // the server do not indicate the client whether the operation was succesfull or not but prints out a faliure for debugging.
-		}
-		sFullMessage = "HTTP/1.1 "+ httpStatus +"\r\nDate: ";
-		sFullMessage += ctime(&currentTime);
-		sFullMessage += "Content-length: ";
-		strFsize = _itoa(intFsize, ctmp, 10);
-		sFullMessage += strFsize;
-		sFullMessage += "\r\n\r\n";
-		*sendBuff = sFullMessage;
-		return true;
+	body = ret ? "File deleted." : "Cannot delete file.";
+
+	intBodySize = body.length();
+	bodySize = _itoa(intBodySize, ctmp, 10);
+
+	response = buildResponse(eRequestType::_DELETE, &httpStatus, &bodySize, &body);
+	*sendBuff = response;
 }
 
 bool sendPutResponse(char* dataRequest, string* sendBuff) {
@@ -261,7 +244,7 @@ string buildResponse(eRequestType httpRequest, string* httpStatus, string* strFs
 		response += "\r\n\r\n";
 	}
 
-	if (httpRequest == eRequestType::GET || httpRequest == eRequestType::POST)
+	if (httpRequest == eRequestType::GET || httpRequest == eRequestType::POST || httpRequest == eRequestType::_DELETE)
 	{
 		response += "Content-type: text/html\r\n";
 		response += "Content-length: ";
@@ -314,6 +297,30 @@ void setGetParams(string uri, string* filename, string* lang) {
 
 }
 
+
+bool removeFile(string fileToRemove, string *httpStatus)
+{
+	if (remove(fileToRemove.c_str()) == NULL)
+	{
+		*httpStatus = "200 OK";
+		return true;
+	} 
+	
+	//check if file exist
+	ifstream file(fileToRemove);
+	if (!file)
+	{
+		*httpStatus = "400 Bad Request";
+	}
+	else
+	{
+		*httpStatus = "500 Internal Server Error";
+		file.close();
+	}
+	
+	cout << "\nCouldn't remove " << fileToRemove << endl; // the server do not indicate the client whether the operation was succesfull or not but prints out a faliure for debugging.
+	return false;
+}
 
 
 // trim from start (in place)
