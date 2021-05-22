@@ -1,5 +1,7 @@
 #include "server.h"
 //infinite loop when send HEAD - it will trigger remove socket
+// post - body is big then the size (the reponse and the req are different)
+// 
 struct SocketState sockets[MAX_SOCKETS] = { 0 };
 int socketsCount = 0;
 

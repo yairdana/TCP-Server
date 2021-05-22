@@ -1,4 +1,5 @@
 #include "server.h"
+
 ifstream inFile;
 string folderPath("C:/temp/");
 time_t currentTime;
@@ -30,28 +31,7 @@ void sendGetResponse(char* dataRequest, string* sendBuff) {
 	closeFile(&inFile);
 }
 
-void setGetParams(string uri, string* filename, string* lang) {
-	const int idx = uri.find("?");
-	if (idx == -1)
-	{
-		*filename = uri;
-		return;
-	}
 
-	*filename = uri.substr(0, idx);
-	const int idx2 = uri.substr(idx).find("lang=");
-	if (idx2 == -1)
-	{
-		return;
-	}
-
-	*lang = uri.substr(idx2 + idx + 5);
-	const int dotIndex = (*filename).find('.');
-	string name = (*filename).substr(0, dotIndex);
-	string end = (*filename).substr(dotIndex);
-	*filename = name + "-" + *lang + end;
-	
-}
 
 // ==== HEAD ==== //
 
@@ -236,6 +216,9 @@ bool sendPutResponse(char* dataRequest, string* sendBuff) {
 	*sendBuff = sFullMessage;
 	return true;
 }
+
+
+// ====== AUXILIRY FUNCTIONS ======= ///
 	
 int createOrOverwriteFile(string data, string filename)
 {
@@ -349,4 +332,28 @@ string extractBodyFromReq(char* dataRequest)
 	contIdx += body.substr(contIdx).find("\n");
 	body = body.substr(contIdx);
 	return body;
+}
+
+
+void setGetParams(string uri, string* filename, string* lang) {
+	const int idx = uri.find("?");
+	if (idx == -1)
+	{
+		*filename = uri;
+		return;
+	}
+
+	*filename = uri.substr(0, idx);
+	const int idx2 = uri.substr(idx).find("lang=");
+	if (idx2 == -1)
+	{
+		return;
+	}
+
+	*lang = uri.substr(idx2 + idx + 5);
+	const int dotIndex = (*filename).find('.');
+	string name = (*filename).substr(0, dotIndex);
+	string end = (*filename).substr(dotIndex);
+	*filename = name + "-" + *lang + end;
+
 }
