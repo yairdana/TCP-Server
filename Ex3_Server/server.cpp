@@ -1,7 +1,5 @@
 #include "server.h"
-//infinite loop when send HEAD - it will trigger remove socket
-// post - body is big then the size (the reponse and the req are different)
-// 
+
 struct SocketState sockets[MAX_SOCKETS] = { 0 };
 int socketsCount = 0;
 
@@ -194,10 +192,10 @@ bool sendMessage(int index)
 			sendTraceResponse(sockets[index].data, &sendBuff);			
 			break;
 		case eRequestType::OPTIONS:
-				sendOptionsResponse(sockets[index].data, &sendBuff);
+			sendOptionsResponse(sockets[index].data, &sendBuff);
 				break;
 		case eRequestType::POST:
-				sendPostResponse(sockets[index].data, &sendBuff);
+			sendPostResponse(sockets[index].data, &sendBuff);
 				break;
 	}
 
