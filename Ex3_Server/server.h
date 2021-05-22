@@ -87,6 +87,6 @@ bool sendPutResponse(char* dataRequest, string* sendBuff);
 int createOrOverwriteFile(string data, string filename);
 
 
-static inline void ltrim(std::string& s);
-static inline void rtrim(std::string & s);
-static inline void trim(std::string & s);
+static inline void ltrim(string& s);
+static inline void rtrim(string & s);
+static inline void trim(string & s);
