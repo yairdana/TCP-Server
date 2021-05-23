@@ -140,7 +140,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="server.cpp" />
-    <ClCompile Include="server_funcs.cpp" />
+    <ClCompile Include="serverRequestsHandler.cpp" />
+    <ClCompile Include="serverFuncs.cpp" />
+    <ClCompile Include="Utils.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="server.h" />
