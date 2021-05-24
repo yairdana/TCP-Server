@@ -49,46 +49,56 @@ struct SocketState
 	int dataLen;
 };
 
+static const char* httpRequests[] =
+{
+	"GET",
+	"HEAD",
+	"POST",
+	"PUT",
+	"DELETE",
+	"TRACE",
+	"OPTIONS"
+};
+
+static string folderPath("C:/temp/");
 
 // =====  Main Functions ==== //
-bool addSocket(SOCKET id, eSocketStatus what);
-void removeSocket(int index);
-void acceptConnection(int index);
-void receiveMessage(int index);
-bool sendMessage(int index);
 WSAData initWsaData();
 SOCKET initSocket();
 sockaddr_in createSocketAddr();
 void bindSocketForClientRequests(SOCKET* listenSocket, sockaddr_in* serverService);
 void listenOnSocketForIncomingConnection(SOCKET* listenSocket);
+bool addSocket(SocketState* sockets, int* socketsCount, SOCKET id, eSocketStatus what);
+void removeSocket(SocketState* sockets, int* socketsCount, int index);
+void acceptConnection(SocketState* sockets, int* socketsCount, int index);
+void receiveMessage(SocketState* sockets, int* socketsCount, int index);
+bool sendMessage(SocketState* sockets, int* socketsCount, int index);
 void updateSocketRequestAndData(SocketState* socket, eRequestType request);
-eRequestType extractRequestFromData(SocketState* socket);
-void deleteStuckRequests();
+void deleteStuckRequests(SocketState* sockets, int* socketsCount);
+fd_set initWaitRecvSockets(SocketState* sockets);
+fd_set initWaitSendSockets(SocketState* sockets);
+void handleWaitRecvSockets(SocketState* sockets, int* socketsCount, int nfd, fd_set* waitRecv);
+void handleWaitSendSockets(SocketState* sockets, int* socketsCount, int nfd, fd_set* waitSend);
 
-fd_set initWaitRecvSockets();
-fd_set initWaitSendSockets();
-
-void handleWaitRecvSockets(int nfd, fd_set* waitRecv);
-void handleWaitSendSockets(int nfd, fd_set* waitSend);
-// =====  Aux Functions ==== //
-void closeFile(ifstream* inFile);
-bool openFile(eRequestType request, ifstream* inFile, string* filename, string* httpStatus);
-string buildResponse(eRequestType httpRequest, string* httpStatus, string* strFsize, string* fileData);
+// =====  Requests Functions ==== //
 void sendGetResponse(char* dataRequest, string* sendBuff);
-void setGetParams(string uri, string* filename, string* lang);
-
-string extractBodyFromReq(char* dataRequest);
-
 void sendHeadResponse(char* dataRequest, string* sendBuff);
 void sendPostResponse(char* dataRequest, string* sendBuff);
 void sendOptionsResponse(char* dataRequest, string* sendBuff);
 void sendDeleteRepsonse(char* dataRequest, string* sendBuff);
-bool sendPutResponse(char* dataRequest, string* sendBuff);
+void sendPutResponse(char* dataRequest, string* sendBuff);
 void sendTraceResponse(char* dataRequest, string* sendBuff);
-int createOrOverwriteFile(string data, string filename);
 
+// =====  Utils ==== //
+void closeFile(ifstream* inFile);
+bool openFile(eRequestType request, ifstream* inFile, string* filename, string* httpStatus);
 bool removeFile(string fileToRemove, string* httpStatus);
-
+eRequestType extractRequestFromData(SocketState* socket);
+string extractBodyFromReq(char* dataRequest);
+string convertFileLengthToString(int fileSize);
+string buildResponse(eRequestType httpRequest, string* httpStatus, string* strFsize, string* fileData);
+void setGetParams(string uri, string* filename, string* lang);
+int createOrOverwriteFile(string data, string filename);
 static inline void ltrim(string& s);
 static inline void rtrim(string & s);
 static inline void trim(string & s);
